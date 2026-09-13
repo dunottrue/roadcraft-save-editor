@@ -12,13 +12,36 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QFileDialog, QLabel, QPushButton, 
     QLineEdit, QComboBox, QListWidget, QListWidgetItem, QTableWidget, QTableWidgetItem, QProgressBar, QDialog, 
     QFormLayout, QSpinBox, QCheckBox, QStatusBar, QMessageBox, QFrame, QSizePolicy, QScrollArea, 
-    QSplitter, QGridLayout, QGraphicsDropShadowEffect
+    QSplitter, QGridLayout, QGraphicsDropShadowEffect, QColorDialog
 )
 from PyQt6.QtGui import QPixmap, QFont, QColor, QIcon, QPalette
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize, QTimer, QRect
 from trucks import TrucksData
 from style import StyleManager
 from constants import *
+import constants as _constants
+from lang import get_manager as _get_language_manager
+
+_lang = _get_language_manager()
+_lang.set_fallback(lambda key: getattr(_constants, key, None) if hasattr(_constants, key) else None)
+
+
+def tr(key, **kwargs):
+    s = _lang.tr(key)
+    if isinstance(s, str) and kwargs:
+        try:
+            s = s.format(**kwargs)
+        except (KeyError, TypeError, ValueError):
+            pass
+    return s
+
+
+def refresh_ui_strings():
+    for _name in dir(_constants):
+        if _name.isupper() and isinstance(getattr(_constants, _name, None), str):
+            if _name == 'LABEL_ABOUT_CONTENT':
+                continue
+            globals()[_name] = tr(_name)
 def resource_path(relative_path):
     base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(base_path, relative_path)
@@ -35,7 +58,9 @@ class Config:
         'window_geometry': f"{StyleManager.DEFAULT_WINDOW_SIZE[0]}x{StyleManager.DEFAULT_WINDOW_SIZE[1]}",
         'auto_backup': True,
         'backup_count': BACKUP_MAX_COUNT,
-        'theme': 'dark'
+        'theme': 'dark',
+        'language': 'en',
+        'accent_color': DEFAULT_ACCENT_COLOR
     }
     def __init__(self):
         self.config_dir = os.path.join(os.path.expanduser("~"), self.CONFIG_DIR_NAME)
@@ -248,13 +273,16 @@ class MainWindow(QMainWindow):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
         self._drag_pos = None
         self.config = Config()
+        StyleManager.set_accent(self.config.get('accent_color', DEFAULT_ACCENT_COLOR))
+        _lang.load(self.config.get('language', 'en'))
+        refresh_ui_strings()
         self.current_save_path = None
         self.original_file_content = None
         self.json_data = None
         self.current_truck_image = None
         self.save_manager = SaveManager()
         self.trucks_data = TrucksData()
-        self.setWindowTitle(WINDOW_TITLE)
+        self.setWindowTitle(f"{WINDOW_TITLE} v{APP_VERSION}")
         self.resize(*StyleManager.DEFAULT_WINDOW_SIZE)
         if os.path.exists(ICON_PATH):
             self.setWindowIcon(QIcon(ICON_PATH))
@@ -263,7 +291,7 @@ class MainWindow(QMainWindow):
             StyleManager.apply_dark_theme(app)
         self._init_ui()
         if not os.path.exists(BACKGROUND_IMAGE):
-            self.status.showMessage(f"Background image not found at: {BACKGROUND_IMAGE}")
+            self.status.showMessage(tr('STATUS_BG_MISSING', path=BACKGROUND_IMAGE))
     def _init_ui(self):
         central = QWidget()
         central.setObjectName("central_bg")
@@ -511,6 +539,36 @@ class MainWindow(QMainWindow):
         backups_label.setStyleSheet(StyleManager.get_style('form_label'))
         settings_layout.addRow(self.auto_backup_cb)
         settings_layout.addRow(backups_label, self.backup_count_spin)
+        lang_label = QLabel(SETTINGS_LANGUAGE)
+        lang_label.setStyleSheet(StyleManager.get_style('form_label'))
+        self.language_combo = QComboBox()
+        self.language_combo.setStyleSheet(StyleManager.get_style('combo_box'))
+        for info in _lang.get_available():
+            self.language_combo.addItem(info['native_name'], info['id'])
+        current_lang = self.config.get('language', 'en')
+        lang_idx = self.language_combo.findData(current_lang)
+        if lang_idx < 0:
+            lang_idx = 0
+        self.language_combo.setCurrentIndex(lang_idx)
+        self.language_combo.currentIndexChanged.connect(self._on_language_changed)
+        settings_layout.addRow(lang_label, self.language_combo)
+        accent_label = QLabel(SETTINGS_ACCENT_COLOR)
+        accent_label.setStyleSheet(StyleManager.get_style('form_label'))
+        self.accent_preview = QLabel()
+        self.accent_preview.setFixedSize(48, 26)
+        self.accent_preview.setStyleSheet(
+            "background-color: %s; border: 1px solid #666; border-radius: 4px;" % StyleManager.DARK_THEME['accent'])
+        self.accent_btn = QPushButton(BUTTON_CHOOSE_COLOR)
+        self.accent_btn.setStyleSheet(StyleManager.get_style('button'))
+        self.accent_btn.clicked.connect(self._choose_accent_color)
+        accent_row = QHBoxLayout()
+        accent_row.setSpacing(8)
+        accent_row.addWidget(self.accent_preview)
+        accent_row.addWidget(self.accent_btn)
+        accent_row.addStretch(1)
+        accent_container = QWidget()
+        accent_container.setLayout(accent_row)
+        settings_layout.addRow(accent_label, accent_container)
         about_panel = QFrame()
         about_panel.setObjectName("aboutPanel")
         about_panel.setStyleSheet(StyleManager.get_style('panel'))
@@ -520,10 +578,16 @@ class MainWindow(QMainWindow):
         about_content = QLabel()
         about_content.setTextFormat(Qt.TextFormat.RichText)
         about_content.setOpenExternalLinks(True)
-        about_content.setText(LABEL_ABOUT_CONTENT)
+        about_content.setText(tr(
+            'LABEL_ABOUT_CONTENT',
+            version=APP_VERSION,
+            accent=StyleManager.DARK_THEME['accent'],
+            translator='Dunottrue'
+        ))
         about_content.setStyleSheet(StyleManager.get_style('about_content_label'))
         about_content.setWordWrap(True)
         about_content.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        self.about_content = about_content
         about_layout.addWidget(about_title)
         about_layout.addWidget(about_content)
         about_layout.addStretch(1)
@@ -589,7 +653,7 @@ class MainWindow(QMainWindow):
         self.levels_panel.levels_table.setRowCount(len(self._levels_known))
         self.levels_widgets.clear()
         for row, (level_id, level_name) in enumerate(self._levels_known):
-            name_item = QTableWidgetItem(level_name)
+            name_item = QTableWidgetItem(tr('map_' + level_id))
             name_item.setFlags(Qt.ItemFlag.ItemIsEnabled)
             unlocked_cb = QCheckBox()
             unlocked_cb.setChecked(level_id in unlocked)
@@ -691,6 +755,34 @@ class MainWindow(QMainWindow):
     def _save_settings(self):
         self.config.set("auto_backup", self.auto_backup_cb.isChecked())
         self.config.set("backup_count", self.backup_count_spin.value())
+    def rebuild_ui(self):
+        refresh_ui_strings()
+        had_data = self.json_data is not None
+        self._init_ui()
+        if had_data:
+            try:
+                self._populate_save_data()
+            except Exception:
+                pass
+            self.save_button.setEnabled(True)
+        self.status.showMessage(STATUS_READY)
+    def _on_language_changed(self, index):
+        lang_id = self.language_combo.itemData(index)
+        if not lang_id or lang_id == self.config.get('language'):
+            return
+        self.config.set('language', lang_id)
+        _lang.load(lang_id)
+        self.rebuild_ui()
+    def _choose_accent_color(self):
+        color = QColorDialog.getColor(
+            QColor(StyleManager.DARK_THEME['accent']),
+            self, tr('DIALOG_SELECT_COLOR')
+        )
+        if color.isValid():
+            hex_color = color.name().upper()
+            self.config.set('accent_color', hex_color)
+            StyleManager.set_accent(hex_color)
+            self.rebuild_ui()
     def _levels_unlock_all(self):
         for _, unlocked_cb, _, _, _, _, _, _, _ in self.levels_widgets:
             unlocked_cb.setChecked(True)
@@ -793,7 +885,8 @@ class TruckDetailsPanel(BasePanel):
         details_frame_layout.setSpacing(2)
         self.truck_details_label = QLabel()
 
-        self.truck_details_label.setStyleSheet("color: #fff; background: transparent; border: none; font-size: 13px; font-family: 'Segoe UI', Arial, sans-serif;")
+        self.truck_details_label.setStyleSheet(
+            f"color: #fff; background: transparent; border: none; font-size: 13px; font-family: '{StyleManager.FONT_FAMILY}', Arial, sans-serif;")
         self.truck_details_label.setFixedWidth(label_width)
         self.truck_details_label.setAlignment(Qt.AlignmentFlag.AlignLeft)
         self.truck_details_label.setWordWrap(True)
@@ -804,9 +897,24 @@ class TruckDetailsPanel(BasePanel):
 
     def update_truck_details(self, truck_data: dict, image_path: str = ""):
         self.truck_name_label.setText(truck_data.get('display_name', 'Unknown'))
-        details = f"Type: {truck_data.get('type', 'Unknown')}\n"
-        details += f"Rarity: {truck_data.get('rarity', 'Unknown')}\n"
-        details += f"ID: {truck_data.get('id', 'Unknown')}"
+        type_map = {
+            'Scout': TYPE_SCOUT,
+            'Construction': TYPE_CONSTRUCTION,
+            'Cargo': TYPE_CARGO,
+            'Tractor': TYPE_TRACTOR,
+            'Unknown': TYPE_UNKNOWN,
+        }
+        rarity_map = {
+            'Rusty': RARITY_RUSTY,
+            'Base': RARITY_BASE,
+            'Heavy': RARITY_HEAVY,
+            'Common': RARITY_COMMON,
+        }
+        raw_type = truck_data.get('type', 'Unknown')
+        raw_rarity = truck_data.get('rarity', 'Unknown')
+        details = f"{TRUCK_DETAIL_TYPE}: {type_map.get(raw_type, raw_type)}\n"
+        details += f"{TRUCK_DETAIL_RARITY}: {rarity_map.get(raw_rarity, raw_rarity)}\n"
+        details += f"{TRUCK_DETAIL_ID}: {truck_data.get('id', 'Unknown')}"
         self.truck_details_label.setText(details)
         if image_path and os.path.exists(image_path):
             pixmap = QPixmap(image_path).scaled(
@@ -817,7 +925,7 @@ class TruckDetailsPanel(BasePanel):
             self.truck_image_label.setPixmap(pixmap)
             self.truck_image_label.setText("")
         else:
-            self.truck_image_label.setText("No image\navailable")
+            self.truck_image_label.setText(TEXT_NO_IMAGE)
             self.truck_image_label.setPixmap(QPixmap())
             self.truck_image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 class TruckListPanel(BasePanel):
@@ -921,12 +1029,14 @@ class StatsPanel(BasePanel):
         self.xp_entry.setText(str(data.get('xp', 0)))
         self.company_name_entry.setText(data.get('companyName', ''))
 class LevelsPanel(BasePanel):
-    TABLE_COLUMNS = [
-        LABEL_LEVEL_NAME, LABEL_UNLOCKED, LABEL_COMPLETED, LABEL_PROGRESS_PERCENT,
-        LABEL_FUEL, LABEL_LOGS, LABEL_STEEL_BEAMS, LABEL_CONCRETE_SLABS, LABEL_STEEL_PIPES
-    ]
-    COLUMN_COUNT = len(TABLE_COLUMNS)
+    COLUMN_COUNT = 9
     COLUMN_WIDTHS = StyleManager.LEVELS_TABLE_COLUMN_WIDTHS
+
+    def TABLE_COLUMNS(self):
+        return [
+            LABEL_LEVEL_NAME, LABEL_UNLOCKED, LABEL_COMPLETED, LABEL_PROGRESS_PERCENT,
+            LABEL_FUEL, LABEL_LOGS, LABEL_STEEL_BEAMS, LABEL_CONCRETE_SLABS, LABEL_STEEL_PIPES
+        ]
     def __init__(self, parent=None):
         super().__init__(LABEL_LEVEL_OPERATIONS, parent)
         controls_grid = QGridLayout()
@@ -973,11 +1083,11 @@ class LevelsPanel(BasePanel):
         header_font = QFont()
         header_font.setPointSize(11)
         header_font.setBold(True)
-        header_font.setFamily("Segoe UI")
-        for col, header_text in enumerate(self.TABLE_COLUMNS):
+        header_font.setFamily(StyleManager.FONT_FAMILY)
+        for col, header_text in enumerate(self.TABLE_COLUMNS()):
             item = QTableWidgetItem(header_text)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            item.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+            item.setFont(QFont(StyleManager.FONT_FAMILY, 11, QFont.Weight.Bold))
             item.setForeground(QColor(StyleManager.DARK_THEME['accent']))
             item.setBackground(QColor(StyleManager.DARK_THEME['panel_bg']))
             self.levels_table.setHorizontalHeaderItem(col, item)
@@ -1019,6 +1129,10 @@ class SettingsPanel(BasePanel):
         self.add_layout(form_layout)
 def main():
     app = QApplication(sys.argv)
+    config = Config()
+    StyleManager.set_accent(config.get('accent_color', DEFAULT_ACCENT_COLOR))
+    _lang.load(config.get('language', 'en'))
+    refresh_ui_strings()
     StyleManager.apply_dark_theme(app)
     window = MainWindow()
     window.show()

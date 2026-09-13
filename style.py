@@ -1,4 +1,4 @@
-from PyQt6.QtGui import QColor, QPalette, QFont, QIcon
+from PyQt6.QtGui import QColor, QPalette, QFont, QIcon, QFontDatabase
 from PyQt6.QtWidgets import QApplication, QStyleFactory, QGraphicsDropShadowEffect, QFrame, QPushButton, QLabel
 from PyQt6.QtWidgets import QSpinBox, QCheckBox, QLineEdit, QTableWidget, QHeaderView, QTableWidgetItem
 from PyQt6.QtCore import Qt, QSize
@@ -7,6 +7,9 @@ import sys
 from typing import Optional
 
 class StyleManager:
+    FONT_FAMILY = "Roboto Flex"
+    ACCENT_COLOR = "#FFCC00"
+
     DARK_THEME = {
         'background': '#1E1E1E',
         'secondary_bg': '#252525',
@@ -14,6 +17,14 @@ class StyleManager:
         'text': '#EEEEEE',
         'text_secondary': '#AAAAAA',
         'accent': '#FFCC00',
+        'accent_hover': '#FFB300',
+        'accent_pressed': '#C99A00',
+        'accent_a120': 'rgba(255, 204, 0, 120)',
+        'accent_a150': 'rgba(255, 204, 0, 150)',
+        'accent_a180': 'rgba(255, 204, 0, 180)',
+        'accent_a220': 'rgba(255, 204, 0, 220)',
+        'accent_a230': 'rgba(255, 204, 0, 230)',
+        'accent_a240': 'rgba(255, 204, 0, 240)',
         'disabled': '#555555',
         'border': '#333333',
         'selection_bg': '#3E3E3E',
@@ -23,14 +34,14 @@ class StyleManager:
         'header_bg': '#323232',
         'panel_bg': '#1A1A1A'
     }
-    
+
     FONTS = {
-        'default': QFont("Segoe UI", 10),
-        'header': QFont("Segoe UI", 12, QFont.Weight.Bold),
-        'title': QFont("Segoe UI", 6, QFont.Weight.Bold),
-        'button': QFont("Segoe UI", 10, QFont.Weight.Bold),
-        'small': QFont("Segoe UI", 9),
-        'monospace': QFont("Courier New", 10),
+        'default': QFont('Roboto Flex', 10),
+        'header': QFont('Roboto Flex', 12, QFont.Weight.Bold),
+        'title': QFont('Roboto Flex', 6, QFont.Weight.Bold),
+        'button': QFont('Roboto Flex', 10, QFont.Weight.Bold),
+        'small': QFont('Roboto Flex', 9),
+        'monospace': QFont('Courier New', 10),
     }
     
     DEFAULT_WINDOW_SIZE = (1400, 900)
@@ -49,7 +60,74 @@ class StyleManager:
     TRUCK_IMAGE_CONTAINER_SIZE = (240, 170)
     TRUCK_IMAGE_LABEL_SIZE = (200, 140)
     FILE_ENTRY_MIN_WIDTH = 320
-    
+
+    @classmethod
+    def load_fonts(cls):
+        """Register bundled fonts (Roboto Flex) and refresh font family."""
+        try:
+            font_path = cls.resource_path(os.path.join("font", "RobotoFlex.ttf"))
+            if os.path.exists(font_path):
+                font_id = QFontDatabase.addApplicationFont(font_path)
+                if font_id >= 0:
+                    families = QFontDatabase.applicationFontFamilies(font_id)
+                    if families:
+                        cls.FONT_FAMILY = families[0]
+            else:
+                cls.load_fonts_dev()
+        except Exception:
+            pass
+        cls.rebuild_fonts()
+
+    @classmethod
+    def load_fonts_dev(cls):
+        try:
+            font_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "font", "RobotoFlex.ttf")
+            if os.path.exists(font_path):
+                font_id = QFontDatabase.addApplicationFont(font_path)
+                if font_id >= 0:
+                    families = QFontDatabase.applicationFontFamilies(font_id)
+                    if families:
+                        cls.FONT_FAMILY = families[0]
+        except Exception:
+            pass
+
+    @classmethod
+    def rebuild_fonts(cls):
+        cls.FONTS = {
+            'default': QFont(cls.FONT_FAMILY, 10),
+            'header': QFont(cls.FONT_FAMILY, 12, QFont.Weight.Bold),
+            'title': QFont(cls.FONT_FAMILY, 6, QFont.Weight.Bold),
+            'button': QFont(cls.FONT_FAMILY, 10, QFont.Weight.Bold),
+            'small': QFont(cls.FONT_FAMILY, 9),
+            'monospace': QFont('Courier New', 10),
+        }
+
+    @classmethod
+    def build_theme_colors(cls, hex_color):
+        color = QColor(hex_color)
+        if not color.isValid():
+            color = QColor("#FFCC00")
+
+        def rgba(alpha):
+            return f"rgba({color.red()}, {color.green()}, {color.blue()}, {alpha})"
+
+        cls.DARK_THEME['accent'] = color.name().upper()
+        cls.DARK_THEME['accent_hover'] = color.lighter(112).name().upper()
+        cls.DARK_THEME['accent_pressed'] = color.darker(120).name().upper()
+        cls.DARK_THEME['accent_a120'] = rgba(120)
+        cls.DARK_THEME['accent_a150'] = rgba(150)
+        cls.DARK_THEME['accent_a180'] = rgba(180)
+        cls.DARK_THEME['accent_a220'] = rgba(220)
+        cls.DARK_THEME['accent_a230'] = rgba(230)
+        cls.DARK_THEME['accent_a240'] = rgba(240)
+        cls.ACCENT_COLOR = cls.DARK_THEME['accent']
+
+    @classmethod
+    def set_accent(cls, hex_color):
+        """Change the accent color and refresh all accent-derived style tokens."""
+        cls.build_theme_colors(hex_color)
+        cls.rebuild_fonts()
+
     STYLES = {
         'panel': """
             background-color: rgba(35, 35, 35, 200);
@@ -148,7 +226,7 @@ class StyleManager:
         
         'action_button': """
             QPushButton {{
-                background-color: rgba(255, 204, 0, 220);
+                background-color: {accent};
                 color: black;
                 border: none;
                 border-radius: 5px;
@@ -156,14 +234,14 @@ class StyleManager:
                 font-weight: bold;
             }}
             QPushButton:hover {{
-                background-color: rgba(255, 215, 40, 230);
+                background-color: {accent_hover};
             }}
             QPushButton:pressed {{
-                background-color: rgba(235, 184, 0, 240);
+                background-color: {accent_pressed};
             }}
             QPushButton:disabled {{
-                background-color: rgba(180, 160, 60, 180);
-                color: rgba(50, 50, 50, 180);
+                background-color: rgba(80, 80, 80, 180);
+                color: rgba(160, 160, 160, 180);
             }}
         """,
         
@@ -248,6 +326,46 @@ class StyleManager:
             }}
         """,
         
+        'combo_box': """
+            QComboBox {{
+                background-color: rgba(45, 45, 45, 200);
+                border: 1px solid {border};
+                border-radius: 5px;
+                padding: 6px 10px;
+                color: {text};
+                font-size: 14px;
+            }}
+            QComboBox:focus {{
+                border: 1px solid {accent};
+            }}
+            QComboBox:hover {{
+                border: 1px solid {accent};
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                width: 24px;
+                padding-right: 4px;
+            }}
+            QComboBox::down-arrow {{
+                width: 10px;
+                height: 10px;
+                image: none;
+                border-left: 4px solid transparent;
+                border-right: 4px solid transparent;
+                border-top: 6px solid {accent};
+                margin-right: 8px;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: rgb(45, 45, 45);
+                border: 1px solid {border};
+                border-radius: 4px;
+                selection-background-color: {accent_a150};
+                selection-color: #000000;
+                color: {text};
+                outline: none;
+            }}
+        """,
+
         'checkbox': """
             QCheckBox {{
                 color: {text_secondary};
@@ -315,7 +433,7 @@ class StyleManager:
                 margin: 2px 0px;
             }}
             QListWidget::item:selected {{
-                background-color: rgba(255, 204, 0, 120);
+                background-color: {accent_a120};
                 color: {text};
                 border-left: 3px solid {accent};
             }}
@@ -330,7 +448,7 @@ class StyleManager:
                 margin: 0px;
             }}
             QListWidget QScrollBar::handle:vertical {{
-                background: rgba(255, 204, 0, 180);
+                background: {accent_a180};
                 border-radius: 5px;
                 min-height: 20px;
             }}
@@ -372,7 +490,7 @@ class StyleManager:
                 border-radius: 8px;
                 border: 1px solid {border};
                 gridline-color: rgba(75, 75, 75, 120);
-                selection-background-color: rgba(255, 204, 0, 120);
+                selection-background-color: {accent_a120};
                 selection-color: {text};
             }}
             QTableWidget::item {{
@@ -393,7 +511,7 @@ class StyleManager:
                 background-color: rgba(55, 55, 55, 250);
             }}
             QTableWidget::item:selected {{
-                background-color: rgba(255, 204, 0, 150);
+                background-color: {accent_a150};
                 color: #000000;
             }}
             QTableWidget::item:hover:!selected {{
@@ -407,7 +525,7 @@ class StyleManager:
                 margin: 0px;
             }}
             QScrollBar::handle:vertical {{
-                background: rgba(255, 204, 0, 180);
+                background: {accent_a180};
                 border-radius: 5px;
                 min-height: 20px;
             }}
@@ -421,7 +539,7 @@ class StyleManager:
                 border-radius: 5px;
             }}
             QScrollBar::handle:horizontal {{
-                background: rgba(255, 204, 0, 180);
+                background: {accent_a180};
                 border-radius: 5px;
                 min-width: 20px;
             }}
@@ -483,7 +601,7 @@ class StyleManager:
                 font-size: 12px;
             }}
             QProgressBar::chunk {{
-                background-color: #FFCC00;
+                background-color: {accent};
                 border-radius: 5px;
             }}
         """,
@@ -505,8 +623,8 @@ class StyleManager:
                 border-radius: 9px;
             }}
             QSlider::handle:horizontal:hover {{
-                background: #ffd630;
-                border: 1px solid #ffd630;
+                background: {accent_hover};
+                border: 1px solid {accent_hover};
             }}
         """,
         
@@ -596,11 +714,11 @@ class StyleManager:
             }}
             QPushButton:hover {{
                 background-color: #333333;
-                color: #FFCC00;
+                color: {accent};
             }}
             QPushButton:pressed {{
                 background-color: #222222;
-                color: #FFD700;
+                color: {accent_hover};
             }}
         """,
         
@@ -666,6 +784,7 @@ class StyleManager:
     def apply_dark_theme(cls, app):
         """Apply dark theme to the application"""
         try:
+            cls.load_fonts()
             app.setStyle(QStyleFactory.create("Fusion"))
             palette = QPalette()
             colors = cls.DARK_THEME

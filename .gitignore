@@ -1,0 +1,8 @@
+# Build artifacts
+build/
+Release/
+*.spec
+
+# Python
+__pycache__/
+*.pyc

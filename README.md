@@ -2,11 +2,24 @@
 
 RoadCraft save editor is a modern save file editor for RoadCraft, the infrastructure construction and logistics simulation game by Saber Interactive. Built with PyQt6, this tool allows you to modify your game progress, unlock vehicles and maps, and manage in-game resources.
 
+**Current version: 1.1.0**
+
 ![RoadCraft Save Editor](screenshot/1.png)
 ![RoadCraft Save Editor](screenshot/2.png)
 ![RoadCraft Save Editor](screenshot/3.png)
 
 ## ✨ Features
+
+### 🌍 Multilanguage Support
+- Built-in **English** and **Russian** language packs
+- Switch languages on the fly in **Settings → Language**
+- Easily add your own language: copy any file from the `Lang` folder, translate it and it will appear in the settings automatically
+- Custom languages are stored in simple, human-readable JSON files next to the app (`Lang/*.json`)
+
+### 🎨 Customizable Appearance
+- Pick any accent color in **Settings → Accent color** — the whole UI restyles instantly
+- Color choice is remembered in the app config file (`.roadcraft_editor/config.json` in your user folder)
+- UI font: **Roboto Flex** (bundled, no system font required)
 
 ### 🚚 Vehicle Management
 - Unlock or lock individual trucks
@@ -39,9 +52,8 @@ RoadCraft save editor is a modern save file editor for RoadCraft, the infrastruc
 ## 💻 Installation
 
 ### Option 1: Download Release
-1. Go to the [Releases](https://github.com/YourUsername/RoadCraft-Save-Editor/releases) page
-2. Extract the zip file
-3. Run `RoadCraft SaveEditor.exe`
+1. Grab the latest build from the **Release** folder
+2. Run `RoadCraft_SaveEditor_Multilang.exe`
 
 ### Option 2: Run from Source
 
@@ -63,7 +75,7 @@ python main.py
 # Make sure requirements are installed
 pip install -r requirements.txt
 
-# Build executable
+# Build executable (output: Release/RoadCraft_SaveEditor_Multilang.exe)
 python build_exe.py
 ```
 
@@ -78,6 +90,16 @@ python build_exe.py
 4. **Save your changes** by clicking the "Save" button
 5. **Launch RoadCraft** to see your modifications in-game
 
+## 🌍 Creating Your Own Language File
+
+1. Go to the `Lang` folder next to the executable
+2. Copy `en.json` and rename it, e.g. `de.json`
+3. Edit `lang_name` / `native_name` (this is how it appears in the language list)
+4. Translate the `strings` section
+5. Start the editor — your new language now appears in **Settings → Language**
+
+`Lang` files are automatically created next to the executable on first run.
+
 ## ⚠️ Usage Notes
 
 - While automatic backups are created, manual backups are still recommended.
@@ -88,12 +110,16 @@ python build_exe.py
 ```bash
 ├── main.py              # Application entry point
 ├── trucks.py            # Truck definitions and logic
-├── style.py             # UI styling and themes
+├── style.py             # UI styling, fonts and accent-color themes
 ├── constants.py         # Configuration and constants
+├── lang.py              # Language manager (reads Lang/*.json)
 ├── build_exe.py         # PyInstaller build script
+├── version_info.txt     # Windows executable version metadata
 ├── images/
 │   ├── trucks/          # Truck images
 │   └── ui/              # UI graphics
+├── Lang/                # Translation files (en.json, ru.json, ...)
+├── font/                # Bundled Roboto Flex font
 ├── screenshot/          # Screenshots for documentation
 └── README.md            # This file
 ```
@@ -117,6 +143,10 @@ Key features adapted:
 - Proprietary format handling
 - Base64 and zlib operations
 
+Original GUI project: [RifaiV/roadcraft-save-editor](https://github.com/RifaiV/roadcraft-save-editor)
+
+- **Russian translation:** Dunottrue
+
 ## 🪄 About This Fork
 
 This is a modern, GUI-based fork offering significant enhancements:
@@ -125,3 +155,6 @@ This is a modern, GUI-based fork offering significant enhancements:
 - Visual truck gallery with images and stats
 - Bulk actions for vehicles and maps
 - Improved backup and save validation
+- Multilanguage support with custom language packs
+- Customizable accent color
+- Roboto Flex UI font
