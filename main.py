@@ -60,7 +60,8 @@ class Config:
         'backup_count': BACKUP_MAX_COUNT,
         'theme': 'dark',
         'language': 'en',
-        'accent_color': DEFAULT_ACCENT_COLOR
+        'accent_color': DEFAULT_ACCENT_COLOR,
+        'font_size': StyleManager.BASE_FONT_SIZE
     }
     def __init__(self):
         self.config_dir = os.path.join(os.path.expanduser("~"), self.CONFIG_DIR_NAME)
@@ -274,6 +275,7 @@ class MainWindow(QMainWindow):
         self._drag_pos = None
         self.config = Config()
         StyleManager.set_accent(self.config.get('accent_color', DEFAULT_ACCENT_COLOR))
+        StyleManager.set_base_font_size(self.config.get('font_size', StyleManager.BASE_FONT_SIZE))
         _lang.load(self.config.get('language', 'en'))
         refresh_ui_strings()
         self.current_save_path = None
@@ -569,6 +571,14 @@ class MainWindow(QMainWindow):
         accent_container = QWidget()
         accent_container.setLayout(accent_row)
         settings_layout.addRow(accent_label, accent_container)
+        font_label = QLabel(SETTINGS_FONT_SIZE)
+        font_label.setStyleSheet(StyleManager.get_style('form_label'))
+        self.font_size_spin = QSpinBox()
+        self.font_size_spin.setRange(8, 18)
+        self.font_size_spin.setValue(self.config.get('font_size', StyleManager.BASE_FONT_SIZE))
+        self.font_size_spin.setStyleSheet(StyleManager.get_style('spinbox'))
+        self.font_size_spin.valueChanged.connect(self._on_font_size_changed)
+        settings_layout.addRow(font_label, self.font_size_spin)
         about_panel = QFrame()
         about_panel.setObjectName("aboutPanel")
         about_panel.setStyleSheet(StyleManager.get_style('panel'))
@@ -783,6 +793,15 @@ class MainWindow(QMainWindow):
             self.config.set('accent_color', hex_color)
             StyleManager.set_accent(hex_color)
             self.rebuild_ui()
+    def _on_font_size_changed(self, value):
+        if value == self.config.get('font_size'):
+            return
+        self.config.set('font_size', value)
+        StyleManager.set_base_font_size(value)
+        app = QApplication.instance()
+        if app is not None:
+            app.setFont(StyleManager.FONTS['default'])
+        self.rebuild_ui()
     def _levels_unlock_all(self):
         for _, unlocked_cb, _, _, _, _, _, _, _ in self.levels_widgets:
             unlocked_cb.setChecked(True)
@@ -1030,7 +1049,6 @@ class StatsPanel(BasePanel):
         self.company_name_entry.setText(data.get('companyName', ''))
 class LevelsPanel(BasePanel):
     COLUMN_COUNT = 9
-    COLUMN_WIDTHS = StyleManager.LEVELS_TABLE_COLUMN_WIDTHS
 
     def TABLE_COLUMNS(self):
         return [
@@ -1060,7 +1078,7 @@ class LevelsPanel(BasePanel):
         self.add_widget(self.levels_table)
     def _setup_levels_table(self):
         from PyQt6.QtWidgets import QHeaderView, QTableWidget, QCheckBox
-        from PyQt6.QtGui import QColor, QFont
+        from PyQt6.QtGui import QColor, QFont, QFontMetrics
         from PyQt6.QtCore import Qt
         if self.levels_table is None:
             self.levels_table = QTableWidget(self)
@@ -1070,9 +1088,7 @@ class LevelsPanel(BasePanel):
         header = self.levels_table.horizontalHeader()
         if header is not None:
             header.setVisible(True)
-            header.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
-            header.setDefaultSectionSize(StyleManager.LEVELS_TABLE_COLUMN_WIDTHS[0])
-            header.setMinimumSectionSize(100)
+            header.setMinimumSectionSize(30)
             header.setHighlightSections(True)
             header.setDefaultAlignment(Qt.AlignmentFlag.AlignCenter)
             header.setFixedHeight(StyleManager.LEVELS_TABLE_HEADER_HEIGHT)
@@ -1080,18 +1096,14 @@ class LevelsPanel(BasePanel):
         if vertical_header:
             vertical_header.setVisible(False)
             vertical_header.setDefaultSectionSize(StyleManager.LEVELS_TABLE_ROW_HEIGHT)
-        header_font = QFont()
-        header_font.setPointSize(11)
-        header_font.setBold(True)
-        header_font.setFamily(StyleManager.FONT_FAMILY)
         for col, header_text in enumerate(self.TABLE_COLUMNS()):
+            font = QFont(StyleManager.FONT_FAMILY, StyleManager.scaled_pt(11), QFont.Weight.Bold)
             item = QTableWidgetItem(header_text)
             item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            item.setFont(QFont(StyleManager.FONT_FAMILY, 11, QFont.Weight.Bold))
+            item.setFont(font)
             item.setForeground(QColor(StyleManager.DARK_THEME['accent']))
             item.setBackground(QColor(StyleManager.DARK_THEME['panel_bg']))
             self.levels_table.setHorizontalHeaderItem(col, item)
-            self.levels_table.setColumnWidth(col, self.COLUMN_WIDTHS[col])
         self.levels_table.setAlternatingRowColors(True)
         self.levels_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.levels_table.setShowGrid(False)
@@ -1099,6 +1111,15 @@ class LevelsPanel(BasePanel):
         self.levels_table.setVerticalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
         self.levels_table.setHorizontalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
         StyleManager.apply_table_style(self.levels_table)
+        header = self.levels_table.horizontalHeader()
+        header.setStretchLastSection(False)
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        for col in range(1, self.COLUMN_COUNT):
+            header_text = self.TABLE_COLUMNS()[col]
+            item = self.levels_table.horizontalHeaderItem(col)
+            width = QFontMetrics(item.font()).horizontalAdvance(header_text) + 20
+            header.resizeSection(col, width)
         self.levels_table.setCornerButtonEnabled(False)
         self.levels_table.setWordWrap(False)
         self.levels_table.update()
@@ -1131,9 +1152,11 @@ def main():
     app = QApplication(sys.argv)
     config = Config()
     StyleManager.set_accent(config.get('accent_color', DEFAULT_ACCENT_COLOR))
+    StyleManager.set_base_font_size(config.get('font_size', StyleManager.BASE_FONT_SIZE))
     _lang.load(config.get('language', 'en'))
     refresh_ui_strings()
     StyleManager.apply_dark_theme(app)
+    app.setFont(StyleManager.FONTS['default'])
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

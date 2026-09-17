@@ -1,7 +1,7 @@
 import os
 
 APP_NAME = "RoadCraft Save Editor"
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.2.2"
 DEFAULT_ACCENT_COLOR = "#FFCC00"
 
 WINDOW_TITLE = "Save Editor"
@@ -76,6 +76,7 @@ LABEL_SETTINGS_TITLE = "Application Settings"
 LABEL_ABOUT_TITLE = "About RoadCraft Save Editor"
 SETTINGS_LANGUAGE = "Language:"
 SETTINGS_ACCENT_COLOR = "Accent color:"
+SETTINGS_FONT_SIZE = "Font size:"
 BUTTON_CHOOSE_COLOR = "Choose Color..."
 DIALOG_SELECT_COLOR = "Select accent color"
 TRUCK_DETAIL_TYPE = "Type"
@@ -94,7 +95,7 @@ RARITY_COMMON = "Common"
 LABEL_ABOUT_CONTENT = (
     "<b>RoadCraft Save Editor</b> is a modern, user-friendly save file editor for the game RoadCraft.<br>"
     "<br>"
-    "<b>Github</b> <a href='https://github.com/RifaiV/roadcraft-save-editor' style='color:#FFCC00;'>RifaiV/roadcraft-save-editor</a><br>"
+    "<b>Github</b> <a href='https://github.com/dunottrue/roadcraft-save-editor' style='color:#FFCC00;'>dunottrue/roadcraft-save-editor</a><br>"
     "<br>"
     "Unlock trucks, edit player stats, unlock levels,<br>"
     "<br>"

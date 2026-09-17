@@ -1,12 +1,12 @@
-﻿# UTF-8
+# UTF-8
 #
 # For more details about fixed file info 'ffi' see:
 # http://msdn.microsoft.com/en-us/library/ms646997.aspx
 
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 2, 0, 0),
-    prodvers=(1, 2, 0, 0),
+    filevers=(1, 2, 2, 0),
+    prodvers=(1, 2, 2, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -22,12 +22,12 @@ VSVersionInfo(
           [
             StringStruct(u'CompanyName', u'RoadCraft Save Editor'),
             StringStruct(u'FileDescription', u'RoadCraft Save Editor (Multilang)'),
-            StringStruct(u'FileVersion', u'1.2.0'),
+            StringStruct(u'FileVersion', u'1.2.2'),
             StringStruct(u'InternalName', u'RoadCraft_SaveEditor_Multilang'),
             StringStruct(u'LegalCopyright', u''),
             StringStruct(u'OriginalFilename', u'RoadCraft_SaveEditor_Multilang.exe'),
             StringStruct(u'ProductName', u'RoadCraft Save Editor'),
-            StringStruct(u'ProductVersion', u'1.2.0')
+            StringStruct(u'ProductVersion', u'1.2.2')
           ]
         )
       ]

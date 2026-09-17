@@ -3,12 +3,27 @@ from PyQt6.QtWidgets import QApplication, QStyleFactory, QGraphicsDropShadowEffe
 from PyQt6.QtWidgets import QSpinBox, QCheckBox, QLineEdit, QTableWidget, QHeaderView, QTableWidgetItem
 from PyQt6.QtCore import Qt, QSize
 import os
+import re
 import sys
 from typing import Optional
+
+
+class NoWheelSpinBox(QSpinBox):
+    """Spin box that ignores wheel events.
+
+    Inside scrollable tables the mouse wheel should scroll the table
+    instead of silently changing the value the cursor happens to hover.
+    """
+
+    def wheelEvent(self, event):
+        event.ignore()
+
 
 class StyleManager:
     FONT_FAMILY = "Roboto Flex"
     ACCENT_COLOR = "#FFCC00"
+    BASE_FONT_SIZE = 10
+    FONT_SCALE = 1.0
 
     DARK_THEME = {
         'background': '#1E1E1E',
@@ -53,7 +68,6 @@ class StyleManager:
     TRUCK_ACTION_PANEL_WIDTH = 150
     LEVELS_TABLE_HEADER_HEIGHT = 75
     LEVELS_TABLE_ROW_HEIGHT = 55
-    LEVELS_TABLE_COLUMN_WIDTHS = [250, 100, 100, 120, 100, 100, 120, 140, 120]
     FOOTER_BUTTON_MIN_WIDTH = 150
     PANEL_HEIGHT = 620
     TRUCK_DETAILS_MAX_WIDTH = 300
@@ -93,14 +107,43 @@ class StyleManager:
 
     @classmethod
     def rebuild_fonts(cls):
+        def pt(base, weight=QFont.Weight.Normal):
+            return QFont(cls.FONT_FAMILY, max(5, round(base * cls.FONT_SCALE)), weight)
         cls.FONTS = {
-            'default': QFont(cls.FONT_FAMILY, 10),
-            'header': QFont(cls.FONT_FAMILY, 12, QFont.Weight.Bold),
-            'title': QFont(cls.FONT_FAMILY, 6, QFont.Weight.Bold),
-            'button': QFont(cls.FONT_FAMILY, 10, QFont.Weight.Bold),
-            'small': QFont(cls.FONT_FAMILY, 9),
-            'monospace': QFont('Courier New', 10),
+            'default': pt(10),
+            'header': pt(12, QFont.Weight.Bold),
+            'title': pt(6, QFont.Weight.Bold),
+            'button': pt(10, QFont.Weight.Bold),
+            'small': pt(9),
+            'monospace': QFont('Courier New', max(5, round(10 * cls.FONT_SCALE))),
         }
+
+    @classmethod
+    def scaled_pt(cls, base_size):
+        """Return a point size scaled by the current UI font scale."""
+        return max(5, round(base_size * cls.FONT_SCALE))
+
+    @classmethod
+    def set_base_font_size(cls, size):
+        """Set the global UI font size (point size) and rebuild fonts."""
+        try:
+            size = int(size)
+        except (TypeError, ValueError):
+            size = cls.BASE_FONT_SIZE
+        size = max(8, min(18, size))
+        cls.FONT_SCALE = size / float(cls.BASE_FONT_SIZE)
+        cls.rebuild_fonts()
+
+    @classmethod
+    def _scale_css_fonts(cls, text):
+        if cls.FONT_SCALE == 1.0 or not text:
+            return text
+
+        def repl(match):
+            value = float(match.group(1)) * cls.FONT_SCALE
+            return "font-size: %dpx" % max(1, round(value))
+
+        return re.sub(r"font-size:\s*(\d+(?:\.\d+)?)px", repl, text)
 
     @classmethod
     def build_theme_colors(cls, hex_color):
@@ -519,29 +562,43 @@ class StyleManager:
             }}
             QScrollBar:vertical {{
                 border: none;
-                background: rgba(45, 45, 45, 180);
-                width: 10px;
-                border-radius: 5px;
+                background: rgba(45, 45, 45, 200);
+                width: 14px;
+                border-radius: 7px;
                 margin: 0px;
             }}
             QScrollBar::handle:vertical {{
-                background: {accent_a180};
-                border-radius: 5px;
-                min-height: 20px;
+                background: {accent};
+                border-radius: 7px;
+                min-height: 30px;
+                margin: 2px;
+            }}
+            QScrollBar::handle:vertical:hover {{
+                background: {accent_hover};
+            }}
+            QScrollBar::sub-page:vertical, QScrollBar::add-page:vertical {{
+                background: transparent;
             }}
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
                 height: 0px;
             }}
             QScrollBar:horizontal {{
                 border: none;
-                background: rgba(45, 45, 45, 180);
-                height: 10px;
-                border-radius: 5px;
+                background: rgba(45, 45, 45, 200);
+                height: 14px;
+                border-radius: 7px;
             }}
             QScrollBar::handle:horizontal {{
-                background: {accent_a180};
-                border-radius: 5px;
-                min-width: 20px;
+                background: {accent};
+                border-radius: 7px;
+                min-width: 30px;
+                margin: 2px;
+            }}
+            QScrollBar::handle:horizontal:hover {{
+                background: {accent_hover};
+            }}
+            QScrollBar::sub-page:horizontal, QScrollBar::add-page:horizontal {{
+                background: transparent;
             }}
             QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {{
                 width: 0px;
@@ -820,7 +877,7 @@ class StyleManager:
                 return ""
             
             format_params = {**cls.DARK_THEME, **kwargs}
-            return cls.STYLES[style_name].format(**format_params)
+            return cls._scale_css_fonts(cls.STYLES[style_name].format(**format_params))
         except Exception:
             return ""
 
@@ -875,7 +932,7 @@ class StyleManager:
     @classmethod
     def create_spinbox(cls, min_val: int = 0, max_val: int = 100, value: int = 0, table_cell: bool = False) -> QSpinBox:
         """Create a styled spinbox"""
-        spinbox = QSpinBox()
+        spinbox = NoWheelSpinBox() if table_cell else QSpinBox()
         spinbox.setRange(min_val, max_val)
         spinbox.setValue(value)
         style = 'table_cell_spinbox' if table_cell else 'spinbox'

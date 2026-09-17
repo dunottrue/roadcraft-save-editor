@@ -2,7 +2,7 @@
 
 RoadCraft save editor is a modern save file editor for RoadCraft, the infrastructure construction and logistics simulation game by Saber Interactive. Built with PyQt6, this tool allows you to modify your game progress, unlock vehicles and maps, and manage in-game resources. This release features **multilanguage support** (English + Russian with pluggable custom language packs) and **own UI settings** — accent color and bundled Roboto Flex font, fully configurable in-app.
 
-**Current version: 1.2.0**
+**Current version: 1.2.2**
 
 ![RoadCraft Save Editor](screenshot/1.png)
 ![RoadCraft Save Editor](screenshot/2.png)
@@ -158,6 +158,8 @@ RoadCraft Reclaim Expansion support (autumn and summer maps): [TXC/roadcraft-sav
 - **Russian translation:** Dunottrue
 
 ## 🪄 About This Fork
+
+Current home: [dunottrue/roadcraft-save-editor](https://github.com/dunottrue/roadcraft-save-editor) — downloads the latest release from that page.
 
 This is a modern, GUI-based fork offering significant enhancements:
 
