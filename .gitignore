@@ -3,6 +3,11 @@ build/
 Release/
 *.spec
 
+# Archives
+*.rar
+*.zip
+*.7z
+
 # Python
 __pycache__/
 *.pyc

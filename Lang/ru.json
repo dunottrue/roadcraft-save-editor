@@ -122,6 +122,8 @@
     "map_rb_map_07_rail_failure": "Заражение",
     "map_rb_map_08_contamination": "Размыв",
     "map_rb_map_09_sand_storm": "Песчаная буря",
-    "map_rb_map_10_geothermal": "Геотермальная"
+    "map_rb_map_10_geothermal": "Геотермальная",
+    "map_rb_map_12_autumn_finds": "Осенние находки",
+    "map_rb_map_13_summer_drought": "Летняя засуха"
   }
 }

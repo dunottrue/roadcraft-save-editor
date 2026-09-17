@@ -2,7 +2,7 @@
 
 RoadCraft save editor is a modern save file editor for RoadCraft, the infrastructure construction and logistics simulation game by Saber Interactive. Built with PyQt6, this tool allows you to modify your game progress, unlock vehicles and maps, and manage in-game resources. This release features **multilanguage support** (English + Russian with pluggable custom language packs) and **own UI settings** — accent color and bundled Roboto Flex font, fully configurable in-app.
 
-**Current version: 1.1.0**
+**Current version: 1.2.0**
 
 ![RoadCraft Save Editor](screenshot/1.png)
 ![RoadCraft Save Editor](screenshot/2.png)
@@ -10,6 +10,11 @@ RoadCraft save editor is a modern save file editor for RoadCraft, the infrastruc
 ![RoadCraft Save Editor](screenshot/4.png)
 
 ## ✨ Features
+
+### 🧩 Updated for the RoadCraft Reclaim Expansion
+- Added the two Reclaim Expansion maps to the editor (based on the work by [TXC/roadcraft-save-editor](https://github.com/TXC/roadcraft-save-editor)):
+  - Autumn Finds (Reclaim Expansion)
+  - Summer Drought (Reclaim Expansion)
 
 ### 🌍 Multilanguage Support
 - Built-in **English** and **Russian** language packs
@@ -44,6 +49,8 @@ RoadCraft save editor is a modern save file editor for RoadCraft, the infrastruc
   - Washout
   - Sand Storm
   - Geothermal
+  - Autumn Finds (Reclaim Expansion)
+  - Summer Drought (Reclaim Expansion)
 - Edit level-specific resources (logs, steel beams, concrete slabs, steel pipes)
 - Modify fuel and recovery coins
 
@@ -145,6 +152,8 @@ Key features adapted:
 - Base64 and zlib operations
 
 Original GUI project: [RifaiV/roadcraft-save-editor](https://github.com/RifaiV/roadcraft-save-editor)
+
+RoadCraft Reclaim Expansion support (autumn and summer maps): [TXC/roadcraft-save-editor](https://github.com/TXC/roadcraft-save-editor)
 
 - **Russian translation:** Dunottrue
 

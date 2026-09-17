@@ -1,7 +1,7 @@
 import os
 
 APP_NAME = "RoadCraft Save Editor"
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.2.0"
 DEFAULT_ACCENT_COLOR = "#FFCC00"
 
 WINDOW_TITLE = "Save Editor"
@@ -34,6 +34,8 @@ LEVELS_KNOWN = [
     ("rb_map_08_contamination", "Washout"),
     ("rb_map_09_sand_storm", "Sand Storm"),
     ("rb_map_10_geothermal", "Geothermal"),
+    ("rb_map_12_autumn_finds", "Autumn Finds"),
+    ("rb_map_13_summer_drought", "Summer Drought"),
 ]
 
 BACKUP_FILE_PATTERN = "CompleteSave_backup_{timestamp}.bak"

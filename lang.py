@@ -93,13 +93,22 @@ class LanguageManager:
     def load(self, lang_id, force=False):
         if lang_id == self._lang_id and not force:
             return
-        data = self._read_json(os.path.join(self._lang_dir, "%s.json" % lang_id))
-        if data is None and lang_id != "en":
-            data = self._read_json(os.path.join(self._lang_dir, "en.json"))
+        user_path = os.path.join(self._lang_dir, "%s.json" % lang_id)
+        data = self._read_json(user_path)
         strings = {}
         if isinstance(data, dict):
             raw = data.get("strings", {})
             strings = raw if isinstance(raw, dict) else {}
+        # Merge keys shipped with the app (so newly added UI strings from an
+        # update show up even if the user's language file is older). Any
+        # translation present in the user's file takes priority.
+        bundled_path = os.path.join(self._bundled_dir, "%s.json" % lang_id)
+        if os.path.abspath(bundled_path) != os.path.abspath(user_path):
+            bundled_data = self._read_json(bundled_path)
+            if isinstance(bundled_data, dict) and isinstance(bundled_data.get("strings"), dict):
+                merged = dict(bundled_data["strings"])
+                merged.update(strings)
+                strings = merged
         self._strings = strings
         self._lang_id = lang_id
         if lang_id == "en":
