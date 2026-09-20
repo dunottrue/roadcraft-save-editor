@@ -4,10 +4,10 @@ RoadCraft save editor is a modern save file editor for RoadCraft, the infrastruc
 
 **Current version: 1.2.9**
 
-![RoadCraft Save Editor](screenshot/1.png)
-![RoadCraft Save Editor](screenshot/2.png)
-![RoadCraft Save Editor](screenshot/3.png)
-![RoadCraft Save Editor](screenshot/4.png)
+![RoadCraft Save Editor](screenshot/1-1.png)
+![RoadCraft Save Editor](screenshot/2-2.png)
+![RoadCraft Save Editor](screenshot/3-3.png)
+![RoadCraft Save Editor](screenshot/4-4.png)
 
 ## ✨ Features
 
