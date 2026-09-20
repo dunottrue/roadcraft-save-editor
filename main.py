@@ -14,8 +14,8 @@ from PyQt6.QtWidgets import (
     QFormLayout, QSpinBox, QCheckBox, QStatusBar, QMessageBox, QFrame, QSizePolicy, QScrollArea, 
     QSplitter, QGridLayout, QGraphicsDropShadowEffect, QColorDialog
 )
-from PyQt6.QtGui import QPixmap, QFont, QColor, QIcon, QPalette
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize, QTimer, QRect
+from PyQt6.QtGui import QPixmap, QFont, QColor, QIcon, QPalette, QPainter, QPen, QBrush
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize, QTimer, QRect, QRectF, QPointF
 from trucks import TrucksData
 from style import StyleManager
 from constants import *
@@ -692,7 +692,82 @@ class MainWindow(QMainWindow):
             self.levels_panel.levels_table.setCellWidget(row, 6, steel_beams_spin)
             self.levels_panel.levels_table.setCellWidget(row, 7, concrete_slabs_spin)
             self.levels_panel.levels_table.setCellWidget(row, 8, steel_pipes_spin)
-            self.levels_widgets.append((level_id, unlocked_cb, completed_cb, prog_spin, fuel_spin, logs_spin, steel_beams_spin, concrete_slabs_spin, steel_pipes_spin))
+            fog_file_exists = self._fog_file_exists(level_id)
+            fog_orig_percent = None
+            if self.json_data and "SslValue" in self.json_data:
+                fow_progress = self.json_data["SslValue"].get("fogOfWarProgress", {})
+                fog_orig_percent = fow_progress.get(level_id)
+            if fog_file_exists:
+                if self._fog_is_revealed(level_id):
+                    fog_state = FoWSwitch.STATE_REVEAL
+                elif self._fog_is_covered(level_id):
+                    fog_state = FoWSwitch.STATE_COVER
+                else:
+                    fog_state = FoWSwitch.STATE_NATIVE
+            else:
+                fog_state = FoWSwitch.STATE_NATIVE
+            fog_switch = FoWSwitch(state=fog_state, orig_percent=fog_orig_percent)
+            fog_switch.setEnabled(fog_file_exists)
+            self.levels_panel.levels_table.setCellWidget(row, 9, fog_switch)
+            self.levels_widgets.append((level_id, unlocked_cb, completed_cb, prog_spin, fuel_spin, logs_spin, steel_beams_spin, concrete_slabs_spin, steel_pipes_spin, fog_switch))
+        self._resize_levels_columns()
+    def _resize_levels_columns(self):
+        from PyQt6.QtGui import QFontMetrics
+        table = self.levels_panel.levels_table
+        header = table.horizontalHeader()
+        if header is None:
+            return
+        for col in range(1, self.levels_panel.COLUMN_COUNT):
+            header_item = table.horizontalHeaderItem(col)
+            if header_item is None:
+                continue
+            width = QFontMetrics(header_item.font()).horizontalAdvance(header_item.text().upper()) + 20
+            for row in range(table.rowCount()):
+                w = table.cellWidget(row, col)
+                if w is not None:
+                    hint = w.sizeHint().width()
+                    if hint > width:
+                        width = hint + 12
+            header.resizeSection(col, width)
+        header.resizeSection(0, header.sectionSize(0) + 24)
+    def _fog_file_path(self, level_id):
+        if self.current_save_path is None:
+            return None
+        save_dir = os.path.dirname(self.current_save_path)
+        path = os.path.join(save_dir, level_id + FOG_OF_WAR_SUFFIX)
+        return path if os.path.isfile(path) else None
+    def _fog_file_exists(self, level_id):
+        return self._fog_file_path(level_id) is not None
+    def _fog_is_revealed(self, level_id):
+        fog_path = self._fog_file_path(level_id)
+        if fog_path is None:
+            return False
+        try:
+            _, decompressed = self.save_manager.decode_file(fog_path)
+            if decompressed is None or len(decompressed) <= 16:
+                return False
+            return all(b == 0x00 for b in decompressed[16:])
+        except Exception:
+            return False
+    def _fog_is_covered(self, level_id):
+        fog_path = self._fog_file_path(level_id)
+        if fog_path is None:
+            return False
+        try:
+            _, decompressed = self.save_manager.decode_file(fog_path)
+            if decompressed is None or len(decompressed) <= 16:
+                return False
+            return all(b == 0xFF for b in decompressed[16:])
+        except Exception:
+            return False
+    def _apply_fog_state(self, fog_path, grid_value):
+        file_content, decompressed = self.save_manager.decode_file(fog_path)
+        if decompressed is None or len(decompressed) <= 16:
+            raise ValueError(f"Unsupported fog file: {fog_path}")
+        grid_start = 16
+        grid_len = len(decompressed) - grid_start
+        new_decompressed = decompressed[:grid_start] + bytes([grid_value]) * grid_len
+        self.save_manager.encode_file(file_content[:53], new_decompressed, fog_path)
     def _save_changes(self):
         if not self.json_data:
             return
@@ -725,13 +800,15 @@ class MainWindow(QMainWindow):
             ssl_value["money"] = stats_data['money']
             ssl_value["xp"] = stats_data['xp']
             ssl_value["companyName"] = stats_data['company_name']
+            fog_write_count = 0
             if hasattr(self, 'levels_widgets'):
                 unlocked = []
                 completed = []
                 level_progress = {}
                 recovery_coins = {}
                 fobs_resources = {}
-                for (level_id, unlocked_cb, completed_cb, prog_spin, fuel_spin, logs_spin, steel_beams_spin, concrete_slabs_spin, steel_pipes_spin) in self.levels_widgets:
+                fog_progress = self.json_data["SslValue"].get("fogOfWarProgress", {})
+                for (level_id, unlocked_cb, completed_cb, prog_spin, fuel_spin, logs_spin, steel_beams_spin, concrete_slabs_spin, steel_pipes_spin, fog_switch) in self.levels_widgets:
                     if unlocked_cb.isChecked():
                         unlocked.append(level_id)
                     if completed_cb.isChecked():
@@ -748,16 +825,39 @@ class MainWindow(QMainWindow):
                     res_list[RESOURCE_INDEX['CONCRETE_SLABS']] = concrete_slabs_spin.value()
                     res_list[RESOURCE_INDEX['STEEL_PIPES']] = steel_pipes_spin.value()
                     fobs_resources[level_id] = {"resources": res_list}
+                    if fog_switch.state() == FoWSwitch.STATE_REVEAL and not self._fog_is_revealed(level_id):
+                        fog_path = self._fog_file_path(level_id)
+                        if fog_path:
+                            try:
+                                self._apply_fog_state(fog_path, 0x00)
+                            except Exception as e:
+                                raise Exception(ERROR_FOW_WRITE.format(map=level_id, error=e))
+                            fog_progress[level_id] = float(100)
+                            fog_write_count += 1
+                    elif fog_switch.state() == FoWSwitch.STATE_COVER and not self._fog_is_covered(level_id):
+                        fog_path = self._fog_file_path(level_id)
+                        if fog_path:
+                            try:
+                                self._apply_fog_state(fog_path, 0xFF)
+                            except Exception as e:
+                                raise Exception(ERROR_FOW_WRITE.format(map=level_id, error=e))
+                            fog_progress[level_id] = float(0)
+                            fog_write_count += 1
                 self.json_data["SslValue"]["unlockedLevels"] = unlocked
                 self.json_data["SslValue"]["completedLevels"] = completed
                 self.json_data["SslValue"]["levelsProgress"] = level_progress
                 self.json_data["SslValue"]["recoveryCoins"] = recovery_coins
                 self.json_data["SslValue"]["fobsResources"] = fobs_resources
+                if fog_write_count:
+                    self.json_data["SslValue"]["fogOfWarProgress"] = fog_progress
             progress.update_progress(90, DIALOG_SAVE_PROGRESS)
             decompressed_data_bytes = json.dumps(self.json_data, separators=(",", ":")).encode('utf-8')
             self.save_manager.encode_file(self.original_file_content[:53], decompressed_data_bytes, self.current_save_path)
             progress.update_progress(100, DIALOG_SAVE_COMPLETE)
-            self.status.showMessage(STATUS_SAVE_SUCCESS)
+            if fog_write_count:
+                self.status.showMessage(STATUS_FOW_UPDATED.format(count=fog_write_count))
+            else:
+                self.status.showMessage(STATUS_SAVE_SUCCESS)
         except Exception as e:
             QMessageBox.critical(self, DIALOG_ERROR_TITLE, ERROR_SAVE_CHANGES.format(error=e))
             self.status.showMessage(STATUS_SAVE_FAIL.format(error=e))
@@ -768,7 +868,10 @@ class MainWindow(QMainWindow):
     def rebuild_ui(self):
         refresh_ui_strings()
         had_data = self.json_data is not None
+        saved_path = self.current_save_path
         self._init_ui()
+        if saved_path:
+            self.file_entry.setText(saved_path)
         if had_data:
             try:
                 self._populate_save_data()
@@ -803,17 +906,21 @@ class MainWindow(QMainWindow):
             app.setFont(StyleManager.FONTS['default'])
         self.rebuild_ui()
     def _levels_unlock_all(self):
-        for _, unlocked_cb, _, _, _, _, _, _, _ in self.levels_widgets:
+        for row in self.levels_widgets:
+            unlocked_cb = row[1]
             unlocked_cb.setChecked(True)
     def _levels_lock_all(self):
-        for _, unlocked_cb, _, _, _, _, _, _, _ in self.levels_widgets:
+        for row in self.levels_widgets:
+            unlocked_cb = row[1]
             unlocked_cb.setChecked(False)
     def _levels_complete_all(self):
-        for _, _, completed_cb, _, _, _, _, _, _ in self.levels_widgets:
+        for row in self.levels_widgets:
+            completed_cb = row[2]
             completed_cb.setChecked(True)
     def _levels_set_all_progress(self):
         value = self.levels_panel.progress_spin.value()
-        for _, _, _, prog_spin, _, _, _, _, _ in self.levels_widgets:
+        for row in self.levels_widgets:
+            prog_spin = row[3]
             prog_spin.setValue(value)
     def mousePressEvent(self, a0):
         if a0 is not None and a0.button() == Qt.MouseButton.LeftButton:
@@ -1047,13 +1154,173 @@ class StatsPanel(BasePanel):
         self.money_entry.setText(str(data.get('money', 0)))
         self.xp_entry.setText(str(data.get('xp', 0)))
         self.company_name_entry.setText(data.get('companyName', ''))
+class FoWSwitch(QWidget):
+    """Tri-state Fog of War switch: Native / Cover / Reveal.
+
+    States map to grid fills:
+      - NATIVE (middle): keep the fog file as-is (original explored % kept)
+      - COVER  (left, 0%): fill the whole grid with fog
+      - REVEAL (right, 100%): open the whole map (fill grid with zeros)
+    """
+
+    STATE_NATIVE = 0
+    STATE_COVER = 1
+    STATE_REVEAL = 2
+
+    stateChanged = pyqtSignal(int)
+
+    def __init__(self, state=STATE_NATIVE, orig_percent=None, parent=None):
+        super().__init__(parent)
+        self._state = state if state in (self.STATE_NATIVE, self.STATE_COVER, self.STATE_REVEAL) else self.STATE_NATIVE
+        self._orig_percent = orig_percent
+        self._pressed_pos = None
+        self.setToolTip(LABEL_FOW_TOOLTIP)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.setMinimumSize(124, 46)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+    def state(self):
+        return self._state
+
+    def setState(self, state):
+        state = state if state in (self.STATE_NATIVE, self.STATE_COVER, self.STATE_REVEAL) else self.STATE_NATIVE
+        if state != self._state:
+            self._state = state
+            self.stateChanged.emit(state)
+            self.update()
+
+    def _pos_frac(self, state):
+        if state == self.STATE_COVER:
+            return 0.18
+        if state == self.STATE_REVEAL:
+            return 0.82
+        return 0.5
+
+    def _state_at_x(self, x):
+        w = max(self.width(), 1)
+        frac = x / w
+        if frac < 0.33:
+            return self.STATE_COVER
+        if frac > 0.66:
+            return self.STATE_REVEAL
+        return self.STATE_NATIVE
+
+    def sizeHint(self):
+        return QSize(124, 46)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._pressed_pos = event.position().x()
+            self._apply_pos(event.position().x())
+            event.accept()
+            return
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event):
+        if self._pressed_pos is not None and event.buttons() & Qt.MouseButton.LeftButton:
+            self._apply_pos(event.position().x())
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._apply_pos(event.position().x())
+            self._pressed_pos = None
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+    def keyPressEvent(self, event):
+        key = event.key()
+        if key in (Qt.Key.Key_Left, Qt.Key.Key_Down):
+            if self._state == self.STATE_REVEAL:
+                self.setState(self.STATE_NATIVE)
+            elif self._state == self.STATE_NATIVE:
+                self.setState(self.STATE_COVER)
+            event.accept()
+            return
+        if key in (Qt.Key.Key_Right, Qt.Key.Key_Up):
+            if self._state == self.STATE_COVER:
+                self.setState(self.STATE_NATIVE)
+            elif self._state == self.STATE_NATIVE:
+                self.setState(self.STATE_REVEAL)
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
+    def _apply_pos(self, x):
+        self.setState(self._state_at_x(x))
+
+    def _state_color(self, enabled):
+        theme = StyleManager.DARK_THEME
+        if not enabled:
+            return QColor(theme['disabled'])
+        if self._state == self.STATE_COVER:
+            return QColor(theme['error'])
+        if self._state == self.STATE_REVEAL:
+            return QColor(theme['accent'])
+        return QColor(theme['text_secondary'])
+
+    def _position_label(self, state):
+        if state == self.STATE_COVER:
+            return "0%"
+        if state == self.STATE_REVEAL:
+            return "100%"
+        if self._orig_percent is not None:
+            return f"{round(self._orig_percent)}%"
+        return "?" 
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        theme = StyleManager.DARK_THEME
+        w = self.width()
+        h = self.height()
+        enabled = self.isEnabled()
+        track_h = 6
+        track_top = 4
+        track_y = track_top
+        x0 = 10.0
+        x1 = w - 10.0
+        track_rect = QRectF(x0, track_y, x1 - x0, track_h)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(theme['border'] if enabled else theme['disabled']))
+        painter.drawRoundedRect(track_rect, track_h / 2, track_h / 2)
+        for state in (self.STATE_COVER, self.STATE_NATIVE, self.STATE_REVEAL):
+            cx = x0 + (x1 - x0) * self._pos_frac(state)
+            cy = track_y + track_h / 2
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QColor(theme['secondary_bg'] if enabled else theme['disabled']))
+            painter.drawEllipse(QPointF(cx, cy), 4.5, 4.5)
+        knob_x = x0 + (x1 - x0) * self._pos_frac(self._state)
+        knob_y = track_y + track_h / 2
+        painter.setPen(QPen(QColor(theme['panel_bg']), 2))
+        painter.setBrush(self._state_color(enabled))
+        painter.drawEllipse(QPointF(knob_x, knob_y), 9.0, 9.0)
+        font = QFont(StyleManager.FONT_FAMILY, StyleManager.scaled_pt(8), QFont.Weight.Normal)
+        painter.setFont(font)
+        for state in (self.STATE_COVER, self.STATE_NATIVE, self.STATE_REVEAL):
+            cx = x0 + (x1 - x0) * self._pos_frac(state)
+            label = self._position_label(state)
+            fm = painter.fontMetrics()
+            text_w = fm.horizontalAdvance(label)
+            text_rect = QRectF(cx - text_w / 2, track_y + track_h + 5, text_w, fm.height())
+            if state == self._state and enabled:
+                painter.setPen(self._state_color(True))
+            else:
+                painter.setPen(QColor(theme['text_secondary'] if enabled else theme['disabled']))
+            painter.drawText(text_rect, Qt.AlignmentFlag.AlignCenter, label)
+
 class LevelsPanel(BasePanel):
-    COLUMN_COUNT = 9
+    COLUMN_COUNT = 10
 
     def TABLE_COLUMNS(self):
         return [
             LABEL_LEVEL_NAME, LABEL_UNLOCKED, LABEL_COMPLETED, LABEL_PROGRESS_PERCENT,
-            LABEL_FUEL, LABEL_LOGS, LABEL_STEEL_BEAMS, LABEL_CONCRETE_SLABS, LABEL_STEEL_PIPES
+            LABEL_FUEL, LABEL_LOGS, LABEL_STEEL_BEAMS, LABEL_CONCRETE_SLABS, LABEL_STEEL_PIPES,
+            LABEL_FOW
         ]
     def __init__(self, parent=None):
         super().__init__(LABEL_LEVEL_OPERATIONS, parent)

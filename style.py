@@ -22,7 +22,7 @@ class NoWheelSpinBox(QSpinBox):
 class StyleManager:
     FONT_FAMILY = "Roboto Flex"
     ACCENT_COLOR = "#FFCC00"
-    BASE_FONT_SIZE = 10
+    BASE_FONT_SIZE = 9
     FONT_SCALE = 1.0
 
     DARK_THEME = {
@@ -547,8 +547,6 @@ class StyleManager:
                 border: none;
                 border-bottom: 2px solid {accent};
                 font-weight: bold;
-                font-size: 14px;
-                text-transform: uppercase;
             }}
             QTableWidget QHeaderView::section:hover {{
                 background-color: rgba(55, 55, 55, 250);
