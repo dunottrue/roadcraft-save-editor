@@ -1,5 +1,5 @@
 from PyQt6.QtGui import QColor, QPalette, QFont, QIcon, QFontDatabase
-from PyQt6.QtWidgets import QApplication, QStyleFactory, QGraphicsDropShadowEffect, QFrame, QPushButton, QLabel
+from PyQt6.QtWidgets import QStyleFactory, QGraphicsDropShadowEffect, QFrame, QPushButton, QLabel
 from PyQt6.QtWidgets import QSpinBox, QCheckBox, QLineEdit, QTableWidget, QHeaderView, QTableWidgetItem
 from PyQt6.QtCore import Qt, QSize
 import os

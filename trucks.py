@@ -105,7 +105,6 @@ class TruckClassifier:
     @staticmethod
     def get_truck_type(truck_id: str, display_name: str) -> str:
         truck_id_lower = truck_id.lower()
-        display_name_lower = display_name.lower()
         if any(pattern in truck_id_lower for pattern in TRUCK_PATTERNS['scout']):
             return "Scout"
         elif any(pattern in truck_id_lower for pattern in TRUCK_PATTERNS['construction']):

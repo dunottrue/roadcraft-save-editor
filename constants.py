@@ -1,9 +1,12 @@
 import os
 
 APP_NAME = "RoadCraft Save Editor"
-APP_VERSION = "1.2.9"
+APP_VERSION = "1.2.9a"
 
 FOG_OF_WAR_SUFFIX = "_fog_of_war"
+FOG_GRID_HEADER_SIZE = 16
+FOG_GRID_UNIFORM_SAMPLE_STEP = 64
+SAVE_HEADER_SIZE = 53
 DEFAULT_ACCENT_COLOR = "#FFCC00"
 
 WINDOW_TITLE = "Save Editor"
@@ -21,6 +24,8 @@ RESOURCE_INDEX = {
     'CONCRETE_SLABS': 6,
     'STEEL_PIPES': 7
 }
+
+RESOURCE_SLOT_COUNT = 10
 
 ZLIB_HEADER = b'\x78\x9c'
 
@@ -51,6 +56,9 @@ STATUS_LOAD_FAIL = "Load failed: {error}"
 STATUS_BG_MISSING = "Background image not found at: {path}"
 STATUS_FOW_UPDATED = "Fog of War updated: {count} map(s)"
 ERROR_FOW_WRITE = "Failed to apply Fog of War to {map}: {error}"
+WARNING_FOW_PARTIAL = "Fog of War was not applied for: {maps}. The rest of the save was written."
+STATUS_BACKUP_CREATED = "Backup created: {name}"
+WARNING_BACKUP_FAILED = "Backup could not be created: {error}"
 WARNING_NO_TRUCK_SELECTED = "No truck selected"
 CONFIRM_UNLOCK_ALL = "Unlock all trucks?"
 CONFIRM_LOCK_ALL = "Lock all trucks?"

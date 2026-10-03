@@ -2,7 +2,7 @@
 
 RoadCraft save editor is a modern save file editor for RoadCraft, the infrastructure construction and logistics simulation game by Saber Interactive. Built with PyQt6, this tool allows you to modify your game progress, unlock vehicles and maps, and manage in-game resources. This release features **multilanguage support** (English + Russian with pluggable custom language packs), **own UI settings** — accent color, bundled Roboto Flex font and adjustable font size (default 9), fully configurable in-app, and a **Fog of War editor**.
 
-**Current version: 1.2.9**
+**Current version: 1.2.9a**
 
 ![RoadCraft Save Editor](screenshot/1-1.png)
 ![RoadCraft Save Editor](screenshot/2-2.png)
@@ -133,6 +133,16 @@ The **Fog of War** column in the Levels table contains a 3-position switch for e
 > - **You cannot restore the Fog of War back** — once a map is revealed, the game cannot "re-fog" it. There is no way to know which exact areas of the map were explored before, so the original partial state is lost forever.
 > - Making changes is safe only for maps that already have a fog file next to the save; the editor never creates or fabricates save-file pieces (no synthetic files that could break on a game update).
 
+## 🐛 Fixes in 1.2.9a
+
+- **Automatic backups actually work now.** The *Auto-create backups when saving* option was displayed in Settings but never triggered, so saving overwrote your save file with no safety copy. Every save now writes `CompleteSave_backup_<timestamp>.bak` (and a backup of each modified `_fog_of_war` file) next to the save, keeping as many copies as *Maximum backups to keep* says.
+- **Fog of War writes no longer abort the whole save.** If one map's fog file cannot be rewritten, the remaining maps and all other changes are still saved and the failed maps are listed in a warning instead of losing the entire save.
+- **Backups are taken before anything is modified**, so an interrupted save can still be recovered.
+- **Resource arrays keep the game's native length (10 slots)** instead of being padded to 8, which previously changed the save layout for maps missing from `fobsResources`.
+- **Fog of War state is read with a single decompression pass** instead of two per map, so loading and saving a save with fog files is noticeably faster.
+- **The Fog of War switch now shows a focus outline** when selected with the keyboard, so it is visible which row you are changing.
+- Removed dead code (an unused settings panel) and unused imports; PyQt static analysis is now clean.
+
 ## 🌍 Creating Your Own Language File
 
 1. Go to the `Lang` folder next to the executable
@@ -148,7 +158,7 @@ The **Fog of War** column in the Levels table contains a 3-position switch for e
 - The game must be **fully closed** while editing (especially the Fog of War) — edits made while the game is running can be silently overwritten.
 - After editing, if Steam offers to synchronize the cloud save, **choose "Keep local files"** so the edited save is kept.
 - **Fog of War is one-way**: revealing a map cannot be undone and the Fog of War cannot be brought back — the original partial explore state is lost permanently.
-- While automatic backups are created, manual backups are still recommended.
+- While automatic backups are created before every save (including copies of the modified Fog of War files), manual backups are still recommended.
 - Use at your own risk – modifying game files may affect gameplay or stability.
 
 ## 🗂️ Project Structure

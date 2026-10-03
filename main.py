@@ -7,15 +7,14 @@ import shutil
 import zlib
 from datetime import datetime
 from typing import Optional, Dict, List, Tuple, Any
-from pathlib import Path
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QFileDialog, QLabel, QPushButton, 
     QLineEdit, QComboBox, QListWidget, QListWidgetItem, QTableWidget, QTableWidgetItem, QProgressBar, QDialog, 
-    QFormLayout, QSpinBox, QCheckBox, QStatusBar, QMessageBox, QFrame, QSizePolicy, QScrollArea, 
-    QSplitter, QGridLayout, QGraphicsDropShadowEffect, QColorDialog
+    QFormLayout, QSpinBox, QCheckBox, QStatusBar, QMessageBox, QFrame, QSizePolicy, 
+    QGridLayout, QGraphicsDropShadowEffect, QColorDialog
 )
-from PyQt6.QtGui import QPixmap, QFont, QColor, QIcon, QPalette, QPainter, QPen, QBrush
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize, QTimer, QRect, QRectF, QPointF
+from PyQt6.QtGui import QPixmap, QFont, QColor, QIcon, QPainter, QPen, QIntValidator
+from PyQt6.QtCore import Qt, pyqtSignal, QSize, QRectF, QPointF
 from trucks import TrucksData
 from style import StyleManager
 from constants import *
@@ -77,14 +76,14 @@ class Config:
                     loaded = json.load(f)
                     if isinstance(loaded, dict):
                         config.update(loaded)
-            except Exception as e:
+            except Exception:
                 pass
         return config
     def save_config(self):
         try:
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 json.dump(self.config, f, indent=2, ensure_ascii=False)
-        except Exception as e:
+        except Exception:
             pass
     def get(self, key: str, default=None) -> Any:
         return self.config.get(key, self.default_config.get(key, default))
@@ -191,7 +190,7 @@ class SaveManager:
                         if save_slots:
                             users[user_folder] = save_slots
             return users
-        except Exception as e:
+        except Exception:
             return {}
     def get_save_path(self, user_id: str, slot_name: str) -> str:
         try:
@@ -203,7 +202,7 @@ class SaveManager:
             if os.path.exists(save_path):
                 return save_path
             return ""
-        except Exception as e:
+        except Exception:
             return ""
     def create_backup(self, save_path: str, backup_dir: Optional[str] = None) -> str:
         if backup_dir is None:
@@ -315,12 +314,12 @@ class MainWindow(QMainWindow):
         window_controls_bar.setContentsMargins(0, 0, 0, 0)
         window_controls_bar.setSpacing(0)
         window_controls_bar.addStretch(1)
-        btn_min = QPushButton("–")
+        btn_min = QPushButton("вЂ“")
         btn_min.setMinimumSize(28, 28)
         btn_min.setMaximumSize(28, 28)
         btn_min.setStyleSheet(StyleManager.get_style('window_min_button'))
         btn_min.clicked.connect(self.showMinimized)
-        btn_close = QPushButton("×")
+        btn_close = QPushButton("Г—")
         btn_close.setMinimumSize(28, 28)
         btn_close.setMaximumSize(28, 28)
         btn_close.setStyleSheet(StyleManager.get_style('window_close_button'))
@@ -331,7 +330,6 @@ class MainWindow(QMainWindow):
         header_content_layout = QHBoxLayout()
         header_content_layout.setContentsMargins(0, 0, 0, 0)
         header_content_layout.setSpacing(0)
-        script_dir = os.path.dirname(os.path.abspath(__file__))
         logo_path = StyleManager.get_logo_path()
         if os.path.exists(logo_path):
             logo_label = QLabel()
@@ -698,12 +696,8 @@ class MainWindow(QMainWindow):
                 fow_progress = self.json_data["SslValue"].get("fogOfWarProgress", {})
                 fog_orig_percent = fow_progress.get(level_id)
             if fog_file_exists:
-                if self._fog_is_revealed(level_id):
-                    fog_state = FoWSwitch.STATE_REVEAL
-                elif self._fog_is_covered(level_id):
-                    fog_state = FoWSwitch.STATE_COVER
-                else:
-                    fog_state = FoWSwitch.STATE_NATIVE
+                detected = self._fog_state_for(level_id)
+                fog_state = detected if detected is not None else FoWSwitch.STATE_NATIVE
             else:
                 fog_state = FoWSwitch.STATE_NATIVE
             fog_switch = FoWSwitch(state=fog_state, orig_percent=fog_orig_percent)
@@ -738,36 +732,39 @@ class MainWindow(QMainWindow):
         return path if os.path.isfile(path) else None
     def _fog_file_exists(self, level_id):
         return self._fog_file_path(level_id) is not None
+    def _fog_grid(self, level_id):
+        fog_path = self._fog_file_path(level_id)
+        if fog_path is None:
+            return None
+        try:
+            _, decompressed = self.save_manager.decode_file(fog_path)
+        except Exception:
+            return None
+        if decompressed is None or len(decompressed) <= FOG_GRID_HEADER_SIZE:
+            return None
+        return decompressed[FOG_GRID_HEADER_SIZE:]
+    def _fog_state_for(self, level_id):
+        grid = self._fog_grid(level_id)
+        if grid is None:
+            return None
+        n = len(grid)
+        if grid.count(0x00) == n:
+            return FoWSwitch.STATE_REVEAL
+        if grid.count(0xFF) == n:
+            return FoWSwitch.STATE_COVER
+        return FoWSwitch.STATE_NATIVE
     def _fog_is_revealed(self, level_id):
-        fog_path = self._fog_file_path(level_id)
-        if fog_path is None:
-            return False
-        try:
-            _, decompressed = self.save_manager.decode_file(fog_path)
-            if decompressed is None or len(decompressed) <= 16:
-                return False
-            return all(b == 0x00 for b in decompressed[16:])
-        except Exception:
-            return False
+        return self._fog_state_for(level_id) == FoWSwitch.STATE_REVEAL
     def _fog_is_covered(self, level_id):
-        fog_path = self._fog_file_path(level_id)
-        if fog_path is None:
-            return False
-        try:
-            _, decompressed = self.save_manager.decode_file(fog_path)
-            if decompressed is None or len(decompressed) <= 16:
-                return False
-            return all(b == 0xFF for b in decompressed[16:])
-        except Exception:
-            return False
+        return self._fog_state_for(level_id) == FoWSwitch.STATE_COVER
     def _apply_fog_state(self, fog_path, grid_value):
         file_content, decompressed = self.save_manager.decode_file(fog_path)
-        if decompressed is None or len(decompressed) <= 16:
+        if decompressed is None or len(decompressed) <= FOG_GRID_HEADER_SIZE:
             raise ValueError(f"Unsupported fog file: {fog_path}")
-        grid_start = 16
+        grid_start = FOG_GRID_HEADER_SIZE
         grid_len = len(decompressed) - grid_start
         new_decompressed = decompressed[:grid_start] + bytes([grid_value]) * grid_len
-        self.save_manager.encode_file(file_content[:53], new_decompressed, fog_path)
+        self.save_manager.encode_file(file_content[:SAVE_HEADER_SIZE], new_decompressed, fog_path)
     def _save_changes(self):
         if not self.json_data:
             return
@@ -800,14 +797,15 @@ class MainWindow(QMainWindow):
             ssl_value["money"] = stats_data['money']
             ssl_value["xp"] = stats_data['xp']
             ssl_value["companyName"] = stats_data['company_name']
-            fog_write_count = 0
+            pending_fog = []
+            fog_errors = []
+            fog_progress = self.json_data["SslValue"].get("fogOfWarProgress", {})
             if hasattr(self, 'levels_widgets'):
                 unlocked = []
                 completed = []
                 level_progress = {}
                 recovery_coins = {}
                 fobs_resources = {}
-                fog_progress = self.json_data["SslValue"].get("fogOfWarProgress", {})
                 for (level_id, unlocked_cb, completed_cb, prog_spin, fuel_spin, logs_spin, steel_beams_spin, concrete_slabs_spin, steel_pipes_spin, fog_switch) in self.levels_widgets:
                     if unlocked_cb.isChecked():
                         unlocked.append(level_id)
@@ -815,45 +813,51 @@ class MainWindow(QMainWindow):
                         completed.append(level_id)
                     level_progress[level_id] = prog_spin.value()
                     recovery_coins[level_id] = fuel_spin.value()
-                    res_list = [0]*8
-                    if level_id in self.json_data["SslValue"].get("fobsResources", {}) and "resources" in self.json_data["SslValue"]["fobsResources"][level_id]:
-                        res_list = self.json_data["SslValue"]["fobsResources"][level_id]["resources"]
-                        if len(res_list) < 8:
-                            res_list += [0]*(8-len(res_list))
+                    existing = self.json_data["SslValue"].get("fobsResources", {}).get(level_id, {})
+                    res_list = list(existing.get("resources", []))
+                    slot_count = max(len(res_list), RESOURCE_SLOT_COUNT)
+                    res_list += [0] * (slot_count - len(res_list))
                     res_list[RESOURCE_INDEX['LOGS']] = logs_spin.value()
                     res_list[RESOURCE_INDEX['STEEL_BEAMS']] = steel_beams_spin.value()
                     res_list[RESOURCE_INDEX['CONCRETE_SLABS']] = concrete_slabs_spin.value()
                     res_list[RESOURCE_INDEX['STEEL_PIPES']] = steel_pipes_spin.value()
                     fobs_resources[level_id] = {"resources": res_list}
-                    if fog_switch.state() == FoWSwitch.STATE_REVEAL and not self._fog_is_revealed(level_id):
-                        fog_path = self._fog_file_path(level_id)
-                        if fog_path:
-                            try:
-                                self._apply_fog_state(fog_path, 0x00)
-                            except Exception as e:
-                                raise Exception(ERROR_FOW_WRITE.format(map=level_id, error=e))
-                            fog_progress[level_id] = float(100)
-                            fog_write_count += 1
-                    elif fog_switch.state() == FoWSwitch.STATE_COVER and not self._fog_is_covered(level_id):
-                        fog_path = self._fog_file_path(level_id)
-                        if fog_path:
-                            try:
-                                self._apply_fog_state(fog_path, 0xFF)
-                            except Exception as e:
-                                raise Exception(ERROR_FOW_WRITE.format(map=level_id, error=e))
-                            fog_progress[level_id] = float(0)
-                            fog_write_count += 1
+                    state = fog_switch.state()
+                    if state == FoWSwitch.STATE_REVEAL and not self._fog_is_revealed(level_id):
+                        pending_fog.append((level_id, 0x00))
+                    elif state == FoWSwitch.STATE_COVER and not self._fog_is_covered(level_id):
+                        pending_fog.append((level_id, 0xFF))
                 self.json_data["SslValue"]["unlockedLevels"] = unlocked
                 self.json_data["SslValue"]["completedLevels"] = completed
                 self.json_data["SslValue"]["levelsProgress"] = level_progress
                 self.json_data["SslValue"]["recoveryCoins"] = recovery_coins
                 self.json_data["SslValue"]["fobsResources"] = fobs_resources
-                if fog_write_count:
-                    self.json_data["SslValue"]["fogOfWarProgress"] = fog_progress
+            self._backup_before_save(pending_fog)
+            fog_write_count = 0
+            for level_id, grid_value in pending_fog:
+                fog_path = self._fog_file_path(level_id)
+                if not fog_path:
+                    continue
+                try:
+                    self._apply_fog_state(fog_path, grid_value)
+                except Exception as e:
+                    fog_errors.append((level_id, e))
+                    continue
+                fog_progress[level_id] = float(100 if grid_value == 0x00 else 0)
+                fog_write_count += 1
+            if fog_write_count:
+                self.json_data["SslValue"]["fogOfWarProgress"] = fog_progress
             progress.update_progress(90, DIALOG_SAVE_PROGRESS)
             decompressed_data_bytes = json.dumps(self.json_data, separators=(",", ":")).encode('utf-8')
-            self.save_manager.encode_file(self.original_file_content[:53], decompressed_data_bytes, self.current_save_path)
+            self.save_manager.encode_file(self.original_file_content[:SAVE_HEADER_SIZE], decompressed_data_bytes, self.current_save_path)
             progress.update_progress(100, DIALOG_SAVE_COMPLETE)
+            if fog_errors:
+                QMessageBox.warning(
+                    self, DIALOG_ERROR_TITLE,
+                    WARNING_FOW_PARTIAL.format(maps=", ".join(m for m, _ in fog_errors))
+                )
+                for level_id, err in fog_errors:
+                    print(ERROR_FOW_WRITE.format(map=level_id, error=err))
             if fog_write_count:
                 self.status.showMessage(STATUS_FOW_UPDATED.format(count=fog_write_count))
             else:
@@ -862,6 +866,35 @@ class MainWindow(QMainWindow):
             QMessageBox.critical(self, DIALOG_ERROR_TITLE, ERROR_SAVE_CHANGES.format(error=e))
             self.status.showMessage(STATUS_SAVE_FAIL.format(error=e))
         progress.close()
+    def _backup_before_save(self, pending_fog):
+        if not self.config.get("auto_backup", True):
+            return
+        try:
+            backup_path = self.save_manager.create_backup(self.current_save_path)
+        except Exception as e:
+            self.status.showMessage(WARNING_BACKUP_FAILED.format(error=e))
+            print(WARNING_BACKUP_FAILED.format(error=e))
+            return
+        try:
+            self.save_manager.cleanup_old_backups(
+                os.path.dirname(self.current_save_path),
+                self.config.get("backup_count", BACKUP_MAX_COUNT)
+            )
+        except Exception as e:
+            print(WARNING_BACKUP_FAILED.format(error=e))
+        for level_id, _ in pending_fog:
+            fog_path = self._fog_file_path(level_id)
+            if not fog_path:
+                continue
+            try:
+                self.save_manager.create_backup(fog_path)
+                self.save_manager.cleanup_old_backups(
+                    os.path.dirname(fog_path),
+                    self.config.get("backup_count", BACKUP_MAX_COUNT)
+                )
+            except Exception as e:
+                print(WARNING_BACKUP_FAILED.format(error=e))
+        self.status.showMessage(STATUS_BACKUP_CREATED.format(name=os.path.basename(backup_path)))
     def _save_settings(self):
         self.config.set("auto_backup", self.auto_backup_cb.isChecked())
         self.config.set("backup_count", self.backup_count_spin.value())
@@ -1127,6 +1160,9 @@ class StatsPanel(BasePanel):
         self.money_entry = StyleManager.create_input_field(PLACEHOLDER_MONEY)
         self.xp_entry = StyleManager.create_input_field(PLACEHOLDER_XP) 
         self.company_name_entry = StyleManager.create_input_field(PLACEHOLDER_COMPANY)
+        int_validator = QIntValidator(0, 999999999, self)
+        self.money_entry.setValidator(int_validator)
+        self.xp_entry.setValidator(int_validator)
         money_label = QLabel(LABEL_MONEY)
         money_label.setStyleSheet(StyleManager.get_style('form_label'))
         xp_label = QLabel(LABEL_XP)
@@ -1146,10 +1182,20 @@ class StatsPanel(BasePanel):
         self.add_stretch()
     def get_stats_data(self) -> dict:
         return {
-            'money': int(self.money_entry.text() or 0),
-            'xp': int(self.xp_entry.text() or 0),
+            'money': self._to_int(self.money_entry),
+            'xp': self._to_int(self.xp_entry),
             'company_name': self.company_name_entry.text() or ""
         }
+    @staticmethod
+    def _to_int(field) -> int:
+        text = (field.text() or '').strip()
+        if not text:
+            return 0
+        try:
+            return int(text)
+        except ValueError:
+            digits = ''.join(ch for ch in text if ch.isdigit())
+            return int(digits) if digits else 0
     def set_stats_data(self, data: dict):
         self.money_entry.setText(str(data.get('money', 0)))
         self.xp_entry.setText(str(data.get('xp', 0)))
@@ -1277,7 +1323,6 @@ class FoWSwitch(QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         theme = StyleManager.DARK_THEME
         w = self.width()
-        h = self.height()
         enabled = self.isEnabled()
         track_h = 6
         track_top = 4
@@ -1299,6 +1344,10 @@ class FoWSwitch(QWidget):
         painter.setPen(QPen(QColor(theme['panel_bg']), 2))
         painter.setBrush(self._state_color(enabled))
         painter.drawEllipse(QPointF(knob_x, knob_y), 9.0, 9.0)
+        if enabled and self.hasFocus():
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.setPen(QPen(QColor(theme['accent']), 1))
+            painter.drawRoundedRect(QRectF(1.5, 1.5, w - 3.0, self.height() - 3.0), 4, 4)
         font = QFont(StyleManager.FONT_FAMILY, StyleManager.scaled_pt(8), QFont.Weight.Normal)
         painter.setFont(font)
         for state in (self.STATE_COVER, self.STATE_NATIVE, self.STATE_REVEAL):
@@ -1344,7 +1393,7 @@ class LevelsPanel(BasePanel):
         self._setup_levels_table()
         self.add_widget(self.levels_table)
     def _setup_levels_table(self):
-        from PyQt6.QtWidgets import QHeaderView, QTableWidget, QCheckBox
+        from PyQt6.QtWidgets import QHeaderView, QTableWidget
         from PyQt6.QtGui import QColor, QFont, QFontMetrics
         from PyQt6.QtCore import Qt
         if self.levels_table is None:
@@ -1391,30 +1440,6 @@ class LevelsPanel(BasePanel):
         self.levels_table.setWordWrap(False)
         self.levels_table.update()
         self.levels_table.show()
-class SettingsPanel(BasePanel):
-    def __init__(self, config, parent=None):
-        super().__init__(LABEL_SETTINGS_TITLE, parent)
-        form_layout = QFormLayout()
-        form_layout.setSpacing(StyleManager.FORM_LAYOUT_SPACING)
-        self.auto_backup_cb = QCheckBox()
-        self.auto_backup_cb.setChecked(config.get('auto_backup', True))
-        self.backup_count_spinbox = QSpinBox()
-        self.backup_count_spinbox.setMinimum(1)
-        self.backup_count_spinbox.setMaximum(20)
-        self.backup_count_spinbox.setValue(config.get('backup_count', BACKUP_MAX_COUNT))
-        self.theme_combo = QComboBox()
-        self.theme_combo.addItem("Dark")
-        self.theme_combo.setCurrentText(config.get('theme', 'dark').capitalize())
-        auto_backup_label = QLabel(LABEL_AUTO_BACKUP)
-        auto_backup_label.setStyleSheet(StyleManager.get_style('form_label'))
-        max_backups_label = QLabel(LABEL_MAX_BACKUPS)
-        max_backups_label.setStyleSheet(StyleManager.get_style('form_label'))
-        theme_label = QLabel("Theme:")
-        theme_label.setStyleSheet(StyleManager.get_style('form_label'))
-        form_layout.addRow(auto_backup_label, self.auto_backup_cb)
-        form_layout.addRow(max_backups_label, self.backup_count_spinbox)
-        form_layout.addRow(theme_label, self.theme_combo)
-        self.add_layout(form_layout)
 def main():
     app = QApplication(sys.argv)
     config = Config()
